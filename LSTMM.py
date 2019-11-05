@@ -2,7 +2,7 @@ import pandas as pd
 import numpy as np
 from sklearn.preprocessing import MinMaxScaler
 from sklearn.metrics import confusion_matrix,accuracy_score
-
+#hahah
 from keras.models import Sequential
 from keras.layers import Dense, Dropout, LSTM, Activation
 from keras.callbacks import EarlyStopping
