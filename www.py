@@ -3,55 +3,90 @@ from numpy import genfromtxt
 import pandas as pd
 import matplotlib.pyplot as plt
 import seaborn as sns
-from sklearn.linear_model import LogisticRegression
+from collections import defaultdict
+from sklearn.linear_model import LogisticRegression,RidgeClassifier
+from sklearn.svm import SVC
 from sklearn.datasets import make_classification
 import seaborn as sns
-from sklearn.model_selection import train_test_split
+from sklearn.model_selection import train_test_split, StratifiedKFold
+from sklearn.metrics import accuracy_score, f1_score, recall_score,precision_score,roc_auc_score
+from statsmodels.tools.tools import add_constant
+from statsmodels.stats.outliers_influence import variance_inflation_factor
+# outliarn check, multicolinerity,precison,recall,f1,auc,roc,confusionmatrix,github
+my_data = pd.read_csv("/Users/biluning/Downloads/DataSet2.csv", delimiter=',')
+feature_col = [col for col in my_data if col.startswith('x')]
+x = my_data[feature_col]
+y = my_data['y']
+print(x.shape)
+print(y.shape)
+model=LogisticRegression()
+model=SVC()
+model=RidgeClassifier()
+num_fold=5
+sfolder = StratifiedKFold(n_splits=num_fold,random_state=64)
+#---------neumeric analysis-------------
+sns.countplot(x="x1",data=x,hue=y)
+plt.show()
+sns.countplot(y)
+plt.show()
+sns.boxplot(data=x)
+plt.show()
+# x=x.drop(columns=["x1"])
 
-class codingAssignment(object):
-    def __init__(self):
-        self.data= {}
-        self.model=None
-    def data_read(self,csv_name=None):
-        if not csv_name:
-            X, y = make_classification(n_samples=500, n_features=20, n_redundant=2,n_repeated=2, n_informative=6,
-                                       n_clusters_per_class=1, random_state=14)
-            X=pd.DataFrame(X)
-            for index in range(len(X.columns.values)):
-                X.columns = X.columns.astype(str)
-                X.columns.values[index]="x"+str(index)
-            y = pd.DataFrame(y)
-            y.columns=['y']
-            self.data["features"]=X
-            self.data["labels"]=y
-        else:
-            my_data = pd.read_csv(csv_name, delimiter=',')
-            feature_col=[col for col in my_data if col.startswith('x')]
-            self.data["features"]=my_data[feature_col]
-            self.data["labels"]=my_data['y']
-        print(self.data["features"].shape)
-        print(self.data["labels"].shape)
 
-    # def data_clean(self):
-    # outliarn check, multicolinerity,precison,recall,f1,auc,roc,confusionmatrix,github
 
-    def get_mode(self,model_name=None):
-    #ensemble, unsupervised learning,
-        if not model_name or model_name=="lr":
-            self.model=LogisticRegression()
-    def train_model(self):
-        X_train, X_test, y_train, y_test = train_test_split(self.data["features"], self.data["labels"].values.ravel(), test_size=0.2)
-        self.model.fit(X_train,y_train)
-        print(self.model.score(X_test,y_test))
-    def indicator_convert(self,colname=None,thredshold_value=None):
-        self.data["features"].loc[self.data["features"][colname]>thredshold_value],self.data["features"].loc[self.data["features"][colname]<=thredshold_value]=1,0
-if __name__ == '__main__':
+one_hot = pd.get_dummies(x['x1'])
+# Drop column B as it is now encoded
+x = x.drop('x1',axis = 1)
+# Join the encoded df
+# x = x.join(one_hot)
+def checkVIF(df):
+    X=add_constant(df)
+    return pd.Series([variance_inflation_factor(X.values, i)
+               for i in range(X.shape[1])],
+              index=X.columns)
+print(checkVIF(x))
+#accuracy,f1,recall,precision,auc
+history=defaultdict(list)
 
-    ins = codingAssignment()
-    ins.data_read()
-    ins.get_mode()
-    ins.train_model()
-    ins.indicator_convert('x1',0)
-    # print(ins.data["features"]['X1'])
+for train, test in sfolder.split(x,y):
+    xtrain=x.iloc[train]
+    xtest=x.iloc[test]
+    ytrain=y.iloc[train].values.ravel()
+    ytest=y.iloc[test].values.ravel()
+    model.fit(xtrain.values,ytrain)
+    #predict labels
+    pred_train=model.predict(xtrain)
+    pred_test=model.predict(xtest)
+
+    #accuracy
+    history["train_acc"].append(accuracy_score(ytrain,pred_train))
+    history["test_acc"].append(accuracy_score(ytest,pred_test))
+    #f1
+    history["train_f1"].append(f1_score(ytrain,pred_train))
+    history["test_f1"].append(f1_score(ytest,pred_test))
+    #recall
+    history["train_recall"].append(recall_score(ytrain,pred_train))
+    history["test_recall"].append(recall_score(ytest,pred_test))
+    #precision
+    history["train_precision"].append(precision_score(ytrain,pred_train))
+    history["test_precision"].append(precision_score(ytest,pred_test))
+    # #predict probablities
+    # prob_train=model.predict_proba(xtrain)
+    # prob_test=model.predict_proba(xtest)
+    # #aucroc
+    # history["train_rocauc"].append(roc_auc_score(ytrain,prob_train[:,1]))
+    # history["test_rocauc"].append(roc_auc_score(ytest,prob_test[:,1]))
+
+
+
+
+print("Train acc  is %0.2f%% Test acc is %0.2f%%"%(np.mean(history["train_acc"])*100,np.mean(history["test_acc"])*100))
+print("Train f1  is %0.2f%% Test f1 is %0.2f%%"%(np.mean(history["train_f1"])*100,np.mean(history["test_f1"])*100))
+print("Train recall  is %0.2f%% Test recall is %0.2f%%"%(np.mean(history["train_recall"])*100,np.mean(history["test_recall"])*100))
+print("Train precision  is %0.2f%% Test precision is %0.2f%%"%(np.mean(history["train_precision"])*100,np.mean(history["test_precision"])*100))
+print("Train rocauc  is %0.2f%% Test rocauc is %0.2f%%"%(np.mean(history["train_rocauc"])*100,np.mean(history["test_rocauc"])*100))
+thredshold_value=0
+# data["features"].loc[data["features"][colname]>thredshold_value],data["features"].loc[data["features"][colname]<=thredshold_value]=1,0
 
 
